@@ -1,0 +1,76 @@
+import { defineConfig, devices } from '@playwright/test';
+
+/**
+ * Read environment variables from file.
+ * https://github.com
+ */
+// require('dotenv').config();
+
+// Membaca variabel PAKSI_VIDEO yang dikirim dari file .yml
+const isPaksaNonton = process.env.PAKSI_VIDEO === 'true';
+
+/**
+ * See https://playwright.dev.
+ */
+export default defineConfig({
+  testDir: './tests',
+  /* Run tests in files in parallel */
+  fullyParallel: true,
+  /* Fail the build on CI if you accidentally left test.only in the source code. */
+  forbidOnly: !!process.env.CI,
+  /* Retry on CI only */
+  retries: process.env.CI ? 0 : 0,
+  /* Opt out of parallel tests on CI. */
+  workers: process.env.CI ? 1 : undefined,
+  /* Reporter to use. See https://playwright.dev */
+  reporter: 'html',
+  /* Shared settings for all the projects below. See https://playwright.dev. */
+  use: {
+    /* Base URL to use in actions like `await page.goto('/')`. */
+    // baseURL: 'http://127.0.0.1:3000',
+
+    /* Collect trace when retrying the failed test. See https://playwright.dev */
+    trace: 'on-first-retry',
+    
+    // Jika tombol dicentang, paksa ambil screenshot selalu. Jika tidak, pakai bawaan Anda (only-on-failure).
+    screenshot: isPaksaNonton ? 'on' : 'only-on-failure',
+    
+    // Jika tombol dicentang, paksa rekam video selalu agar bisa ditonton. Jika tidak, pakai bawaan Anda (retain-on-failure).
+    video: isPaksaNonton ? 'on' : 'retain-on-failure'
+  },
+
+  /* Configure projects for major browsers */
+  projects: [
+    {
+      name: 'chromium',
+      use: { ...devices['Desktop Chrome'] },
+    },
+
+    /* Test against mobile viewports. */
+    // {
+    //   name: 'Mobile Chrome',
+    //   use: { ...devices['Pixel 5'] },
+    // },
+    // {
+    //   name: 'Mobile Safari',
+    //   use: { ...devices['iPhone 12'] },
+    // },
+
+    /* Test against branded browsers. */
+    // {
+    //   name: 'Microsoft Edge',
+    //   use: { ...devices['Desktop Edge'], channel: 'msedge' },
+    // },
+    // {
+    //   name: 'Google Chrome',
+    //   use: { ...devices['Desktop Chrome'], channel: 'chrome' },
+    // },
+  ],
+
+  /* Run your local dev server before starting the tests */
+  // webServer: {
+  //   command: 'npm run start',
+  //   url: 'http://127.0.0.1:3000',
+  //   reuseExistingServer: !process.env.CI,
+  // },
+});

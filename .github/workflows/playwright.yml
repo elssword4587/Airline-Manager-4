@@ -1,0 +1,106 @@
+name: Playwright Tests
+on:
+  workflow_dispatch:
+    inputs:
+      aktifkan_random_delay:
+        description: 'Centang untuk aktifkan Random Delay (Default: ON)'
+        type: boolean
+        required: false
+        default: true
+      paksa_simpan_video:
+        description: 'Centang jika ingin paksa rekam video untuk ditonton (Default: OFF)'
+        type: boolean
+        required: false
+        default: false
+
+jobs:
+  test:
+    timeout-minutes: 29
+    runs-on: ubuntu-22.04
+    
+    # Hak akses wajib agar bot bisa melakukan push commit ke dalam repositori
+    permissions:
+      contents: write
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Random Delay
+      # Langkah ini hanya berjalan jika opsi 'aktifkan_random_delay' bernilai true (tercentang)
+      if: github.event.inputs.aktifkan_random_delay == 'true' || github.event.inputs.aktifkan_random_delay == ''
+      run: |
+         DELAY=$(( RANDOM % 1500 ))
+         echo "Menunggu $DELAY detik..."
+         sleep $DELAY
+
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '22' # Aman dari bug freeze ekstraksi ZIP
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Get Playwright version
+      id: pw-version
+      run: echo "version=$(npx playwright --version | awk '{print $2}')" >> $GITHUB_OUTPUT
+
+    - uses: actions/cache@v4
+      id: playwright-cache
+      with:
+        path: ~/.cache/ms-playwright
+        key: ${{ runner.os }}-playwright-${{ steps.pw-version.outputs.version }}
+
+    - name: Disable Man-DB Auto-Update
+      run: |
+        sudo debconf-set-selections <<< "man-db man-db/auto-update boolean false"
+        sudo dpkg-reconfigure man-db
+
+    - name: Install Playwright Browsers
+      env:
+        NODE_OPTIONS: "--max-old-space-size=4096"
+      run: npx playwright install --with-deps chromium
+
+    - name: Create .env file
+      run: |
+        touch .env
+        echo "EMAIL=${{ secrets.EMAIL }}" >> .env
+        echo "PASSWORD=${{ secrets.PASSWORD }}" >> .env
+        echo "MAX_FUEL_PRICE=${{ vars.MAX_FUEL_PRICE }}" >> .env
+        echo "MAX_CO2_PRICE=${{ vars.MAX_CO2_PRICE }}" >> .env
+        echo "INCREASE_AIRLINE_REPUTATION=${{ vars.INCREASE_AIRLINE_REPUTATION }}" >> .env
+        echo "CAMPAIGN_TYPE=${{ vars.CAMPAIGN_TYPE }}" >> .env
+        echo "CAMPAIGN_DURATION=${{ vars.CAMPAIGN_DURATION }}" >> .env
+
+    - name: Run Playwright tests
+      # PERBAIKAN UTAMA: Mengirimkan nilai centang dari GitHub secara paksa ke dalam Environment Variable mesin Node.js
+      env:
+        PAKSI_VIDEO: ${{ github.event.inputs.paksa_simpan_video }}
+      run: npx playwright test
+      
+    - name: Upload Test Results
+      uses: actions/upload-artifact@v4
+      if: always() # Tetap selalu upload seperti bawaan asli Anda
+      with:
+        name: playwright-report
+        path: test-results/
+        retention-days: 7
+
+    # SOLUSI KOREKSI: Otomatis push file last-commit.txt jika ada perubahan dari script spec.ts
+    - name: Keepalive Via Auto Commit
+      if: always()
+      run: |
+        # Konfigurasi identitas Git
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@://github.com"
+        
+        # Cek apakah ada perubahan nyata pada file last-commit.txt
+        if [ -f "last-commit.txt" ] && git status --porcelain | grep -q "last-commit.txt"; then
+          echo "Terdeteksi perubahan pada last-commit.txt. Menjalankan auto-commit..."
+          git add last-commit.txt
+          # Tag [skip ci] wajib agar commit ini tidak memicu run tes baru secara berulang-ulang
+          git commit -m "chore: keepalive update [skip ci]"
+          git push
+        else
+          echo "Tidak ada perubahan pada last-commit.txt (Bukan tanggal 1 atau sudah di-commit pada sesi sebelumnya). Git tetap bersih."
+        fi
+        

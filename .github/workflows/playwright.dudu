@@ -1,0 +1,57 @@
+name: Playwright Tests
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "01,31 * * * *"
+jobs:
+  test:
+    timeout-minutes: 15 # Dinaikkan sedikit agar aman pada eksekusi pertama
+    runs-on: ubuntu-22.04
+    steps:
+    - uses: actions/checkout@v4
+
+    # PERBAIKAN 1: Mengunci versi Node ke 22 untuk menghindari bug freeze ekstraksi ZIP lts/*
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+
+    - name: Install dependencies
+      run: npm ci
+
+    # PERBAIKAN 2: Menggunakan deteksi versi Playwright asli agar cache tidak bergantung pada package-lock saja
+    - name: Get Playwright version
+      id: pw-version
+      run: echo "version=$(npx playwright --version | awk '{print $2}')" >> $GITHUB_OUTPUT
+
+    - uses: actions/cache@v4
+      id: playwright-cache
+      with:
+        path: ~/.cache/ms-playwright
+        key: ${{ runner.os }}-playwright-${{ steps.pw-version.outputs.version }}
+
+    # PERBAIKAN 3: Matikan auto-update sistem Ubuntu agar tidak mengunci penulisan data ke disk
+    - name: Disable Man-DB Auto-Update
+      run: |
+        sudo debconf-set-selections <<< "man-db man-db/auto-update boolean false"
+        sudo dpkg-reconfigure man-db
+
+    # PERBAIKAN 4: Tambahkan batas memori RAM Node.js & jalankan instalasi biner + dependensi sistem
+    - name: Install Playwright Browsers
+      env:
+        NODE_OPTIONS: "--max-old-space-size=4096"
+      run: npx playwright install --with-deps chromium
+
+    - name: Create .env file
+      run: |
+        touch .env
+        echo "EMAIL=${{ secrets.EMAIL }}" >> .env
+        echo "PASSWORD=${{ secrets.PASSWORD }}" >> .env
+        echo "MAX_FUEL_PRICE=${{ vars.MAX_FUEL_PRICE }}" >> .env
+        echo "MAX_CO2_PRICE=${{ vars.MAX_CO2_PRICE }}" >> .env
+        echo "INCREASE_AIRLINE_REPUTATION=${{ vars.INCREASE_AIRLINE_REPUTATION }}" >> .env
+        echo "CAMPAIGN_TYPE=${{ vars.CAMPAIGN_TYPE }}" >> .env
+        echo "CAMPAIGN_DURATION=${{ vars.CAMPAIGN_DURATION }}" >> .env
+
+    - name: Run Playwright tests
+      run: npx playwright test
+      
