@@ -12,35 +12,46 @@ export class MaintenanceUtils {
         this.page = page;
         // Mengambil konfigurasi dari .env dengan nilai fallback default jika tidak diisi
         this.repairWear = process.env.REPAIR_WEAR || '30';
-        this.hoursCheck = parseInt(process.env.HOURS_CHECK || '20', 10);
+        this.hoursCheck = parseInt(process.env.HOURS_CHECK || '20', 10); // Default ke 20 jam jika .env kosong
     }
 
     /**
      * Helper privat untuk membuka panel perencanaan.
+     * Menggunakan moveAndClick global untuk menjamin lintasan melengkung dan pendaratan acak.
      */
     private async openPlanPanel() {
         const planButton = this.page.getByRole('button', { name: ' Plan' });
         await planButton.waitFor({ state: 'visible', timeout: 15000 });
+        
+        // Panggil utilitas terpusat untuk simulasi gerak dan klik manusiawi
         await GeneralUtils.moveAndClick(this.page, planButton);
     }
 
     /**
-     * SELEKSI DROP-DOWN MANUSIAWI
+     * 🛠️ FITUR BARU: SELEKSI DROP-DOWN MANUSIAWI (ANTI-TELEPORTASI)
+     * Menyimulasi tindakan manusia memilih opsi: Bergerak ke kotak drop-down, mengkliknya,
+     * menunggu panel opsi muncul di layar (jeda mata membaca), lalu memilih opsi target.
      */
     private async moveAndSelectOption(selectLocator: any, optionValue: string) {
+        // 1. Gerakkan mouse secara halus dan klik kotak drop-down utama untuk membukanya
         await GeneralUtils.moveAndClick(this.page, selectLocator);
+        
+        // 2. ⏱️ JEDA PSIKOLOGIS: Meniru waktu yang dibutuhkan mata dan otak manusia untuk mencari opsi
         await GeneralUtils.randomSleep(700, 1400); 
+
+        // 3. Eksekusi pemilihan opsi secara sinkron setelah UI-nya terpicu terbuka secara fisik
         await selectLocator.selectOption(optionValue);
+        
+        // Jeda sesaat seolah-olah manusia melepas fokus dari menu drop-down tersebut
         await GeneralUtils.randomSleep(500, 900);
     }
 
     /**
-     * SIMULASI SMOOTH SCROLLING
+     * Menyimulasi pergerakan scroll manusia yang acak (chaotic smooth scrolling).
+     * Bisa mendadak cepat, pelan, putus-putus, bahkan kelewatan lalu naik lagi.
      */
     private async chaoticHumanScroll(targetY: number) {
         const steps = Math.floor(Math.random() * 4) + 3; 
-        let currentScroll = 0;
-        const scrollStyle = Math.floor(Math.random() * 4);
         const totalDistance = targetY > 0 ? targetY + 100 : targetY - 100; 
         const baseDelta = totalDistance / steps;
 
@@ -48,32 +59,7 @@ export class MaintenanceUtils {
             let deltaY = baseDelta;
             let delay = Math.floor(Math.random() * 100) + 50; 
 
-            switch (scrollStyle) {
-                case 0: 
-                    if (j === Math.floor(steps / 2)) {
-                        await GeneralUtils.randomSleep(400, 800); 
-                    }
-                    break;
-                case 1: 
-                    deltaY = baseDelta * (0.5 + (j / steps));
-                    delay = Math.max(30, delay - (j * 15));
-                    break;
-                case 2: 
-                    deltaY = baseDelta * (1.5 - (j / steps));
-                    delay = delay + (j * 20);
-                    break;
-                case 3: 
-                    if (j === steps - 1) {
-                        await this.page.mouse.wheel(0, baseDelta + (targetY > 0 ? 80 : -80));
-                        await GeneralUtils.randomSleep(300, 600); 
-                        await this.page.mouse.wheel(0, targetY > 0 ? -80 : 80);
-                        continue;
-                    }
-                    break;
-            }
-
             await this.page.mouse.wheel(0, deltaY);
-            currentScroll += deltaY;
             await this.page.waitForTimeout(delay);
         }
     }
@@ -91,9 +77,12 @@ export class MaintenanceUtils {
         }
     }
 
+    /**
+     * Melakukan scroll balik ke atas secara penuh (mentok) secara bertahap.
+     */
     private async scrollBackToTop() {
         console.log("Melakukan scroll balik ke atas secara manusiawi...");
-        const upSteps = Math.floor(Math.random() * 3) + 4; 
+        const upSteps = Math.floor(Math.random() * 3) + 4; // 4 sampai 6 kali usapan ke atas
         for (let k = 0; k < upSteps; k++) {
             const scrollAmount = -(Math.floor(Math.random() * 200) + 200); 
             await this.page.mouse.wheel(0, scrollAmount);
@@ -106,17 +95,20 @@ export class MaintenanceUtils {
         await this.openPlanPanel();
         await GeneralUtils.randomSleep(1000, 2000);
         
+        // Upgrade tombol bulk repair menggunakan moveAndClick terpusat
         const bulkRepairButton = this.page.getByRole('button', { name: ' Bulk repair' });
         await GeneralUtils.moveAndClick(this.page, bulkRepairButton);
         await GeneralUtils.randomSleep(1200, 2200);
         
-        console.log(`Memilih ambang batas perbaikan ${this.repairWear}% berdasarkan konfigurasi .env...`);
+        // --- 🚀 PROSES SELEKSI OPSI SECARA HUMAN-LIKE BERAKSI ---
+        console.log(`Memilih ambang batas perbaikan ${this.repairWear}% dengan jeda pencarian visual...`);
         const repairPercentSelect = this.page.locator('#repairPct');
         await this.moveAndSelectOption(repairPercentSelect, this.repairWear);
         await GeneralUtils.randomSleep(1200, 2500);
         
         const noPlaneExists = await this.page.getByText('There are no aircraft worn to').isVisible();
         if (!noPlaneExists) {
+            // Upgrade tombol final perbaikan massal menggunakan moveAndClick terpusat
             const planBulkRepairButton = this.page.getByRole('button', { name: 'Plan bulk repair' });
             await GeneralUtils.moveAndClick(this.page, planBulkRepairButton);
         }
@@ -126,93 +118,90 @@ export class MaintenanceUtils {
         await this.openPlanPanel();
         await GeneralUtils.randomSleep(1000, 2000);
         
+        // Upgrade tombol bulk check menggunakan moveAndClick terpusat
         const bulkCheckButton = this.page.getByRole('button', { name: ' Bulk check' });
         await GeneralUtils.moveAndClick(this.page, bulkCheckButton);
         
         await GeneralUtils.randomSleep(3000, 4500);
         
-        let clickedAny = false;
+        let clicked = false;
         let didScroll = false; 
-        const maxClicksPerSession = 5; // Batasi maksimal klik beruntun per sesi demi keamanan akun
 
-        console.log(`[Task] Memulai evaluasi kartu pesawat secara preventif (Maksimal per sesi: ${maxClicksPerSession})...`);
+        // 🚀 STRATEGI UTAMA 1: Pre-Scroll ke bawah panel agar seluruh kartu pesawat (.bg-white) termuat penuh di layar
+        console.log("[Maintenance] Melakukan pre-scroll ke bawah panel untuk memuat seluruh komponen kartu...");
+        for (let s = 0; s < 5; s++) {
+            await this.page.mouse.wheel(0, 450);
+            await GeneralUtils.randomSleep(200, 450);
+        }
+        await GeneralUtils.randomSleep(1000, 1500);
 
-        for (let attempt = 0; attempt < maxClicksPerSession; attempt++) {
-            // 🚀 STRATEGI UTAMA: Selalu ambil list elemen yang paling baru di setiap awal perulangan
-            const allPlaneCards = this.page.locator('.bg-white');
-            const cardsCount = await allPlaneCards.count();
+        // Ambil penyeleksian seluruh kartu putih (.bg-white) setelah proses scroll selesai
+        const allPlaneCards = this.page.locator('.bg-white');
+        const cardsCount = await allPlaneCards.count();
+        
+        console.log(`[Task] Mengevaluasi ${cardsCount} kartu pesawat dari atas ke bawah (Ambang batas: < ${this.hoursCheck} jam)...`);
+
+        // 🚀 STRATEGI UTAMA 2: Jalankan loop satu arah langsung dari indeks 0 hingga akhir tanpa interupsi rescan/break
+        for (let i = 0; i < cardsCount; i++) {
+            const cardElement = allPlaneCards.nth(i);
             
-            let targetCard: any = null;
-            let alasanLog = "";
-            let targetIndex = -1;
-
-            // Cari kartu pertama yang lolos kriteria kelayakan dari snapshot DOM terbaru
-            for (let i = 0; i < cardsCount; i++) {
-                const cardElement = allPlaneCards.nth(i);
-                
-                if (!(await cardElement.isVisible())) {
-                    continue;
-                }
-
-                const cardText = await cardElement.innerText();
-                
-                // Jaring pengaman: Cek jika ada class teks bahaya / tombol merah di dalam kartu ini
-                const hasDangerText = await cardElement.locator('.text-danger').count() > 0;
-                
-                // Ekstrak angka jam penerbangan sebelum teks hr/hour/hours
-                const hourMatch = cardText.match(/(\d+)\s*(?=hr|hour)/i);
-                let hoursRemaining = 999; 
-                
-                if (hourMatch) {
-                    hoursRemaining = parseInt(hourMatch[1], 10);
-                }
-
-                // Periksa apakah jam berada di bawah batas .env ATAU memiliki indikator merah
-                if (hoursRemaining <= this.hoursCheck || hasDangerText) {
-                    targetCard = cardElement;
-                    targetIndex = i;
-                    alasanLog = hasDangerText ? "Teks Merah Terdeteksi" : `Sisa ${hoursRemaining} jam (Batas .env: ${this.hoursCheck} jam)`;
-                    break; // Keluar dari pencarian internal untuk mengeklik target terpilih ini
-                }
+            if (!(await cardElement.isVisible())) {
+                continue;
             }
 
-            // Jika dari pengecekan ulang tidak ditemukan lagi pesawat kritis, hentikan pencarian seluruhnya
-            if (!targetCard) {
-                break;
+            // Ambil text isi kartu secara keseluruhan untuk membaca sisa jam terbang
+            const cardText = await cardElement.innerText();
+            
+            // Pengaman Tambahan: Deteksi apakah teks jam terbang di dalam kartu ini sudah menyala merah (.text-danger)
+            const hasDangerText = await cardElement.locator('.text-danger').count() > 0;
+            
+            // Ekstrak angka jam penerbangan sebelum kata hr/hour/hours/jam
+            const hourMatch = cardText.match(/(\d+)\s*(?=hr|hour|jam)/i);
+            let hoursRemaining = 999; 
+            
+            if (hourMatch) {
+                hoursRemaining = parseInt(hourMatch[1], 10);
             }
 
-            console.log(`[Preventif] Menandai pesawat indeks ${targetIndex} karena: ${alasanLog}`);
+            // EVALUASI: Jika jam penerbangan <= hoursCheck (20 jam) ATAU teks jam sudah berwarna merah (.text-danger)
+            if (hoursRemaining <= this.hoursCheck || hasDangerText) {
+                let alasan = hasDangerText ? "Teks Angka Jam Berwarna Merah" : `Sisa ${hoursRemaining} jam (Di bawah batas ${this.hoursCheck} jam)`;
+                console.log(`[Preventif] Klik kartu pesawat indeks ${i} karena: ${alasan}`);
 
-            const boxBefore = await targetCard.boundingBox();
-            const viewport = this.page.viewportSize();
-            if (boxBefore && viewport && (boxBefore.y + boxBefore.height > viewport.height || boxBefore.y < 0)) {
-                didScroll = true; 
+                const boxBefore = await cardElement.boundingBox();
+                const viewport = this.page.viewportSize();
+                if (boxBefore && viewport && (boxBefore.y + boxBefore.height > viewport.height || boxBefore.y < 0)) {
+                    didScroll = true; 
+                }
+
+                // Scroll fokus ke elemen kartu target sebelum melakukan klik halus
+                await this.humanScrollToElement(cardElement);
+                await cardElement.scrollIntoViewIfNeeded();
+                await GeneralUtils.randomSleep(400, 800);
+
+                // Gerakkan kursor ke kartu pesawat secara halus dan klik secara acak di area aman kartu
+                await GeneralUtils.moveAndClick(this.page, cardElement);
+                clicked = true;
+
+                // Jeda ketukan jari manusia antar klik pesawat agar aman dari Anti-Cheat game
+                await GeneralUtils.randomSleep(1000, 2000);
             }
-
-            await this.humanScrollToElement(targetCard);
-            await targetCard.scrollIntoViewIfNeeded();
-            await GeneralUtils.randomSleep(400, 800);
-
-            // Jalankan klik halus ke pesawat target
-            await GeneralUtils.moveAndClick(this.page, targetCard);
-            clickedAny = true;
-
-            // Jeda kamuflase: memberi jeda bagi server game untuk merefresh UI kartu sebelum perulangan berikutnya
-            await GeneralUtils.randomSleep(1500, 3000);
         }
 
-        if (clickedAny) {
+        if (clicked) {
             if (didScroll) {
                 await this.scrollBackToTop();
             } else {
                 await GeneralUtils.randomSleep(1000, 2000);
             }
             
+            // Upgrade tombol final bulk check menggunakan moveAndClick terpusat
             const planBulkCheckButton = this.page.getByRole('button', { name: 'Plan bulk check' });
             await GeneralUtils.moveAndClick(this.page, planBulkCheckButton);
-            console.log("[Maintenance] Berhasil memproses batch pemeriksaan preventif.");
+            console.log("[Maintenance] Batch bulk check berhasil dieksekusi!");
         } else {
-            console.log("[Preventif] Semua armada aman, belum ada pesawat yang menyentuh batas kritis jam atau teks merah.");
+            console.log("[Preventif] Selesai. Semua pesawat dalam kondisi aman di atas batas jam terbang.");
         }
     }
 }
+
