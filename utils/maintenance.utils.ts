@@ -12,7 +12,7 @@ export class MaintenanceUtils {
         this.page = page;
         // Mengambil konfigurasi dari .env dengan nilai fallback default jika tidak diisi
         this.repairWear = process.env.REPAIR_WEAR || '30';
-        this.hoursCheck = parseInt(process.env.HOURS_CHECK || '20', 10); // Sesuai instruksi, default ke 20 jam jika .env kosong
+        this.hoursCheck = parseInt(process.env.HOURS_CHECK || '20', 10);
     }
 
     /**
@@ -131,55 +131,74 @@ export class MaintenanceUtils {
         
         await GeneralUtils.randomSleep(3000, 4500);
         
-        let clicked = false;
+        let clickedAny = false;
         let didScroll = false; 
+        const maxClicksPerSession = 5; // Batasi maksimal klik per sesi agar natural dan aman
 
-        // Ambil semua kartu pesawat yang tersedia di list panel check
-        const allPlaneCards = this.page.locator('.bg-white');
-        const cardsCount = await allPlaneCards.count();
-        
-        console.log(`[Task] Mengevaluasi ${cardsCount} kartu pesawat berdasarkan jam (Ambang batas: < ${this.hoursCheck} jam) atau indikator merah...`);
+        console.log(`[Task] Memulai evaluasi kartu pesawat secara preventif (Maksimal per sesi: ${maxClicksPerSession})...`);
 
-        for (let i = 0; i < cardsCount; i++) {
-            const cardElement = allPlaneCards.nth(i);
+        for (let attempt = 0; attempt < maxClicksPerSession; attempt++) {
+            // 🚀 STRATEGI UTAMA: Selalu ambil list elemen yang paling baru di setiap awal perulangan
+            const allPlaneCards = this.page.locator('.bg-white');
+            const cardsCount = await allPlaneCards.count();
             
-            // 1. Ambil teks isi kartu untuk membaca sisa jam inspeksi
-            const cardText = await cardElement.innerText();
-            
-            // 2. Jaring Pengaman Akhir: Deteksi apakah elemen teks merah ada di dalam kartu ini
-            const hasDangerText = await cardElement.locator('.text-danger').count() > 0;
-            
-            // Regex untuk menangkap angka jam sebelum teks 'hr' atau 'hour'
-            const hourMatch = cardText.match(/(\d+)\s*(?=hr|hour)/i);
-            let hoursRemaining = 999; 
-            
-            if (hourMatch) {
-                hoursRemaining = parseInt(hourMatch[1], 10);
-            }
+            let targetCard: any = null;
+            let alasanLog = "";
+            let targetIndex = -1;
 
-            // --- 🚀 LOGIKA KUNCI: Cek jika jam <= HOURS_CHECK ATAU sudah berwarna merah (.text-danger) ---
-            if (hoursRemaining <= this.hoursCheck || hasDangerText) {
-                let alasan = hasDangerText ? "Teks Merah Terdeteksi" : `Sisa ${hoursRemaining} jam (Batas .env: ${this.hoursCheck} jam)`;
-                console.log(`[Preventif] Menandai pesawat indeks ${i} karena: ${alasan}`);
-
-                const boxBefore = await cardElement.boundingBox();
-                const viewport = this.page.viewportSize();
-                if (boxBefore && viewport && (boxBefore.y + boxBefore.height > viewport.height || boxBefore.y < 0)) {
-                    didScroll = true; 
+            // Cari kartu pertama yang memenuhi syarat dari snapshot DOM terbaru
+            for (let i = 0; i < cardsCount; i++) {
+                const cardElement = allPlaneCards.nth(i);
+                
+                if (!(await cardElement.isVisible())) {
+                    continue;
                 }
 
-                await this.humanScrollToElement(cardElement);
-                await cardElement.scrollIntoViewIfNeeded();
-                await GeneralUtils.randomSleep(400, 800);
+                const cardText = await cardElement.innerText();
+                const hasDangerText = await cardElement.locator('.text-danger').count() > 0;
+                
+                const hourMatch = cardText.match(/(\d+)\s*(?=hr|hour)/i);
+                let hoursRemaining = 999; 
+                
+                if (hourMatch) {
+                    hoursRemaining = parseInt(hourMatch[1], 10);
+                }
 
-                await GeneralUtils.moveAndClick(this.page, cardElement);
-                clicked = true;
-
-                await GeneralUtils.randomSleep(1000, 2000);
+                // Cek kriteria pemeliharaan
+                if (hoursRemaining <= this.hoursCheck || hasDangerText) {
+                    targetCard = cardElement;
+                    targetIndex = i;
+                    alasanLog = hasDangerText ? "Teks Merah Terdeteksi" : `Sisa ${hoursRemaining} jam (Batas .env: ${this.hoursCheck} jam)`;
+                    break; // Berhenti mencari internal, eksekusi target ini dulu
+                }
             }
+
+            // Jika tidak ada lagi pesawat yang perlu diperiksa, keluar dari perulangan utama
+            if (!targetCard) {
+                break;
+            }
+
+            console.log(`[Preventif] Menandai pesawat indeks ${targetIndex} karena: ${alasanLog}`);
+
+            const boxBefore = await targetCard.boundingBox();
+            const viewport = this.page.viewportSize();
+            if (boxBefore && viewport && (boxBefore.y + boxBefore.height > viewport.height || boxBefore.y < 0)) {
+                didScroll = true; 
+            }
+
+            await this.humanScrollToElement(targetCard);
+            await targetCard.scrollIntoViewIfNeeded();
+            await GeneralUtils.randomSleep(400, 800);
+
+            // Klik kartu pesawat secara manusiawi
+            await GeneralUtils.moveAndClick(this.page, targetCard);
+            clickedAny = true;
+
+            // Jeda kamuflase: berikan waktu agar UI game selesai memproses sinkronisasi data
+            await GeneralUtils.randomSleep(1500, 3000);
         }
 
-        if (clicked) {
+        if (clickedAny) {
             if (didScroll) {
                 await this.scrollBackToTop();
             } else {
@@ -188,6 +207,7 @@ export class MaintenanceUtils {
             
             const planBulkCheckButton = this.page.getByRole('button', { name: 'Plan bulk check' });
             await GeneralUtils.moveAndClick(this.page, planBulkCheckButton);
+            console.log("[Maintenance] Berhasil memproses batch pemeriksaan preventif.");
         } else {
             console.log("[Preventif] Semua armada aman, belum ada pesawat yang menyentuh batas kritis jam atau teks merah.");
         }
