@@ -133,7 +133,7 @@ export class MaintenanceUtils {
         
         let clickedAny = false;
         let didScroll = false; 
-        const maxClicksPerSession = 5; // Batasi maksimal klik per sesi agar natural dan aman
+        const maxClicksPerSession = 5; // Batasi maksimal klik beruntun per sesi demi keamanan akun
 
         console.log(`[Task] Memulai evaluasi kartu pesawat secara preventif (Maksimal per sesi: ${maxClicksPerSession})...`);
 
@@ -146,7 +146,7 @@ export class MaintenanceUtils {
             let alasanLog = "";
             let targetIndex = -1;
 
-            // Cari kartu pertama yang memenuhi syarat dari snapshot DOM terbaru
+            // Cari kartu pertama yang lolos kriteria kelayakan dari snapshot DOM terbaru
             for (let i = 0; i < cardsCount; i++) {
                 const cardElement = allPlaneCards.nth(i);
                 
@@ -155,8 +155,11 @@ export class MaintenanceUtils {
                 }
 
                 const cardText = await cardElement.innerText();
+                
+                // Jaring pengaman: Cek jika ada class teks bahaya / tombol merah di dalam kartu ini
                 const hasDangerText = await cardElement.locator('.text-danger').count() > 0;
                 
+                // Ekstrak angka jam penerbangan sebelum teks hr/hour/hours
                 const hourMatch = cardText.match(/(\d+)\s*(?=hr|hour)/i);
                 let hoursRemaining = 999; 
                 
@@ -164,16 +167,16 @@ export class MaintenanceUtils {
                     hoursRemaining = parseInt(hourMatch[1], 10);
                 }
 
-                // Cek kriteria pemeliharaan
+                // Periksa apakah jam berada di bawah batas .env ATAU memiliki indikator merah
                 if (hoursRemaining <= this.hoursCheck || hasDangerText) {
                     targetCard = cardElement;
                     targetIndex = i;
                     alasanLog = hasDangerText ? "Teks Merah Terdeteksi" : `Sisa ${hoursRemaining} jam (Batas .env: ${this.hoursCheck} jam)`;
-                    break; // Berhenti mencari internal, eksekusi target ini dulu
+                    break; // Keluar dari pencarian internal untuk mengeklik target terpilih ini
                 }
             }
 
-            // Jika tidak ada lagi pesawat yang perlu diperiksa, keluar dari perulangan utama
+            // Jika dari pengecekan ulang tidak ditemukan lagi pesawat kritis, hentikan pencarian seluruhnya
             if (!targetCard) {
                 break;
             }
@@ -190,11 +193,11 @@ export class MaintenanceUtils {
             await targetCard.scrollIntoViewIfNeeded();
             await GeneralUtils.randomSleep(400, 800);
 
-            // Klik kartu pesawat secara manusiawi
+            // Jalankan klik halus ke pesawat target
             await GeneralUtils.moveAndClick(this.page, targetCard);
             clickedAny = true;
 
-            // Jeda kamuflase: berikan waktu agar UI game selesai memproses sinkronisasi data
+            // Jeda kamuflase: memberi jeda bagi server game untuk merefresh UI kartu sebelum perulangan berikutnya
             await GeneralUtils.randomSleep(1500, 3000);
         }
 
