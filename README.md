@@ -72,7 +72,7 @@ Maintenance features:
 - Runs **Bulk check** for aircraft that have dangerous/warning indicators.
 - Scrolls to aircraft cards when they are outside the visible viewport.
 - Scrolls back to the top before submitting when scrolling was needed.
-- Runs **Bulk repair** with the repair threshold set to `30%`.
+- Runs **Bulk repair** with the repair threshold default set to `30%` and A-check at `20H`
 - Skips repair submission when no aircraft match the repair condition.
 
 ### 6. Depart All Aircraft
