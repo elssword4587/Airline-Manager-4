@@ -70,6 +70,9 @@ jobs:
         echo "INCREASE_AIRLINE_REPUTATION=${{ vars.INCREASE_AIRLINE_REPUTATION }}" >> .env
         echo "CAMPAIGN_TYPE=${{ vars.CAMPAIGN_TYPE }}" >> .env
         echo "CAMPAIGN_DURATION=${{ vars.CAMPAIGN_DURATION }}" >> .env
+        # --- PERBAIKAN BARU: Memasukkan variabel maintenance dinamis ---
+        echo "REPAIR_WEAR=${{ vars.REPAIR_WEAR }}" >> .env
+        echo "HOURS_CHECK=${{ vars.HOURS_CHECK }}" >> .env
 
     - name: Run Playwright tests
       # PERBAIKAN UTAMA: Mengirimkan nilai centang dari GitHub secara paksa ke dalam Environment Variable mesin Node.js
@@ -91,7 +94,7 @@ jobs:
       run: |
         # Konfigurasi identitas Git
         git config user.name "github-actions[bot]"
-        git config user.email "github-actions[bot]@://github.com"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
         
         # Cek apakah ada perubahan nyata pada file last-commit.txt
         if [ -f "last-commit.txt" ] && git status --porcelain | grep -q "last-commit.txt"; then
