@@ -149,6 +149,8 @@ Create a `.env` file for local runs, or configure GitHub Actions secrets/variabl
 | `PASSWORD` | Secret | Airline Manager 4 account password. |
 | `MAX_FUEL_PRICE` | Variable | Normal fuel purchase price limit. Example: `550`. |
 | `MAX_CO2_PRICE` | Variable | Normal CO2 purchase price limit. Example: `120`. |
+| `REPAIR_WEAR` | Variable | Normal wear limit. Example: `30`.|
+| `HOURS_CHECK` | Variable | Normal hours for A check. Example: `20`. |
 
 ### Optional
 
@@ -169,6 +171,8 @@ MAX_CO2_PRICE=120
 INCREASE_AIRLINE_REPUTATION=true
 CAMPAIGN_TYPE=1
 CAMPAIGN_DURATION=4
+REPAIR_WEAR=30
+HOURS_CHECK=20
 ```
 
 ## Running with GitHub Actions
@@ -185,6 +189,8 @@ Setup steps:
 4. Add these variables:
    - `MAX_FUEL_PRICE`
    - `MAX_CO2_PRICE`
+   - `REPAIR_WEAR`
+   - `HOURS_CHECK`
    - `INCREASE_AIRLINE_REPUTATION` if you want reputation campaigns
    - `CAMPAIGN_TYPE` if reputation campaigns are enabled
    - `CAMPAIGN_DURATION` if reputation campaigns are enabled
