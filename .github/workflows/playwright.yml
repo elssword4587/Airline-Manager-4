@@ -55,10 +55,14 @@ jobs:
         sudo debconf-set-selections <<< "man-db man-db/auto-update boolean false"
         sudo dpkg-reconfigure man-db
 
-    - name: Install Playwright Browsers
+    - name: Install Playwright Browsers & System Dependencies
       env:
         NODE_OPTIONS: "--max-old-space-size=4096"
       run: npx playwright install --with-deps chromium
+
+    - name: Install Xvfb (Virtual Display Layer)
+      # Menambahkan alat Xvfb agar server Linux memiliki layar monitor virtual
+      run: sudo apt-get update && sudo apt-get install -y xvfb
 
     - name: Create .env file
       run: |
@@ -74,11 +78,10 @@ jobs:
         echo "REPAIR_WEAR=${{ vars.REPAIR_WEAR }}" >> .env
         echo "HOURS_CHECK=${{ vars.HOURS_CHECK }}" >> .env
 
-    - name: Run Playwright tests
-      # PERBAIKAN UTAMA: Mengirimkan nilai centang dari GitHub secara paksa ke dalam Environment Variable mesin Node.js
+    - name: Run Playwright tests (Headed Mode via Xvfb)
       env:
         PAKSI_VIDEO: ${{ github.event.inputs.paksa_simpan_video }}
-      run: npx playwright test
+      run: xvfb-run --auto-servernum --server-args="-screen 0 1280x1024x24" npx playwright test --headed
       
     - name: Upload Test Results
       uses: actions/upload-artifact@v4
