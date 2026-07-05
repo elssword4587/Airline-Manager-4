@@ -12,7 +12,7 @@ export class MaintenanceUtils {
         this.page = page;
         // Mengambil konfigurasi dari .env dengan nilai fallback default jika tidak diisi
         this.repairWear = process.env.REPAIR_WEAR || '30';
-        this.hoursCheck = parseInt(process.env.HOURS_CHECK || '20', 10); // Default ke 20 jam jika .env kosong
+        this.hoursCheck = parseInt(process.env.HOURS_CHECK || '30', 10); // Default ke 20 jam jika .env kosong
     }
 
     /**
