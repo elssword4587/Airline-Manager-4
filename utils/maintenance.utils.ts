@@ -135,44 +135,58 @@ export class MaintenanceUtils {
         }
         await GeneralUtils.randomSleep(1000, 1500);
 
-        // Ambil penyeleksian seluruh kartu putih (.bg-white) setelah proses scroll selesai
-        const allPlaneCards = this.page.locator('.bg-white');
-        const cardsCount = await allPlaneCards.count();
-        
-        console.log(`[Task] Mengevaluasi ${cardsCount} kartu pesawat dari atas ke bawah (Ambang batas: < ${this.hoursCheck} jam)...`);
+        // Scroll balik ke paling atas terlebih dahulu agar perhitungan indeks kartu dimulai dengan benar
+        await this.page.mouse.wheel(0, -2500);
+        await GeneralUtils.randomSleep(800, 1200);
+
+        // Ambil jumlah total elemen kartu pesawat `.bg-white` saat pertama kali dimuat
+        let cardsCount = await this.page.locator('.bg-white').count();
+        console.log(`[Task] Mengevaluasi ${cardsCount} kartu pesawat dari atas ke bawah (Ambang batas: <= ${this.hoursCheck} jam)...`);
 
         // 🚀 STRATEGI UTAMA 2: Jalankan loop satu arah langsung dari indeks 0 hingga akhir
         for (let i = 0; i < cardsCount; i++) {
-            const cardElement = allPlaneCards.nth(i);
+            // 🔄 AMBIL ULANG LOCATOR DI SETIAP ITERASI (Mencegah Stale Element Reference setelah klik pertama)
+            const cardElement = this.page.locator('.bg-white').nth(i);
             
-            if (!(await cardElement.isVisible())) {
+            // Pengaman: Tunggu kartu terpasang dengan benar di DOM sebelum mengecek isinya
+            try {
+                await cardElement.waitFor({ state: 'attached', timeout: 3000 });
+            } catch (e) {
+                console.log(`[Warning] Kartu indeks ${i} tidak merespon/hilang. Lanjut ke kartu berikutnya.`);
                 continue;
+            }
+
+            // Jika kartu belum masuk ke area layar aktif, scroll perlahan ke posisinya
+            if (!(await cardElement.isVisible())) {
+                await cardElement.scrollIntoViewIfNeeded();
+                await GeneralUtils.randomSleep(300, 600);
+                if (!(await cardElement.isVisible())) continue;
             }
 
             // Ambil text isi kartu secara keseluruhan untuk membaca sisa jam terbang
             const cardText = await cardElement.innerText();
             
-            // Pengaman Tambahan: Deteksi apakah teks jam terbang di dalam kartu ini sudah menyala merah (.text-danger)
+            // Deteksi apakah teks jam terbang di dalam kartu ini sudah menyala merah (.text-danger)
             const hasDangerText = await cardElement.locator('.text-danger').count() > 0;
             
-            // 🚀 PERBAIKAN REGEX: Menangkap angka jam yang berada di BARIS BARU tepat setelah kalimat "Hours to check"
+            // 🚀 PERBAIKAN REGEX BARU: Menangkap angka jam yang berada di BARIS BARU tepat setelah kalimat "Hours to check"
             const hourMatch = cardText.match(/hours\s*to\s*check\s*[\r\n\s]*(\d+)/i) || cardText.match(/(\d+)\s*(?=hr|hour|jam)/i);
             let hoursRemaining = null; 
             
             if (hourMatch) {
                 hoursRemaining = parseInt(hourMatch[1], 10);
             } else {
-                // Jalur cadangan jika teks "Hours to check" berubah, ambil angka pertama yang tersedia di kartu
+                // Jalur cadangan jika teks "Hours to check" berganti bahasa, ambil angka pertama pada kartu
                 const backupMatch = cardText.match(/\d+/);
                 if (backupMatch) hoursRemaining = parseInt(backupMatch[0], 10);
             }
 
-            // --- 📌 EVALUASI PRIORITAS BARU ---
+            // --- 📌 STRUKTUR LOGIKA PRIORITAS ---
             let harusDiCheck = false;
             let alasan = "";
 
             if (hoursRemaining !== null) {
-                // PRIORITAS UTAMA: Jika nilai teks angka berhasil diekstrak, jadikan acuan mutlak (Hijau/Merah tidak masalah)
+                // PRIORITAS UTAMA: Jika nilai angka teks berhasil dibaca, jadikan acuan mutlak (Hijau/Merah bernilai sama)
                 if (hoursRemaining <= this.hoursCheck) {
                     harusDiCheck = true;
                     alasan = `Sisa ${hoursRemaining} jam (Di bawah/sama dengan batas ${this.hoursCheck} jam) [Berdasarkan Angka Teks]`;
@@ -180,12 +194,16 @@ export class MaintenanceUtils {
             } else if (hasDangerText) {
                 // PRIORITAS CADANGAN: Hanya jika teks angka gagal terbaca sama sekali, gunakan warna merah sebagai fallback
                 harusDiCheck = true;
-                alasan = "Gagal membaca teks angka, tetapi mendeteksi warna merah (.text-danger)";
+                alasan = "Gagal membaca teks angka, tetapi terdeteksi warna merah (.text-danger)";
             }
 
-            // Eksekusi klik jika memenuhi syarat di atas
+            // Eksekusi klik jika memenuhi syarat evaluasi di atas
             if (harusDiCheck) {
                 console.log(`[Preventif] Klik kartu pesawat indeks ${i} karena: ${alasan}`);
+
+                // Pastikan elemen berada di posisi tengah layar yang aman sebelum diklik oleh mouse virtual
+                await cardElement.scrollIntoViewIfNeeded();
+                await GeneralUtils.randomSleep(400, 800);
 
                 const boxBefore = await cardElement.boundingBox();
                 const viewport = this.page.viewportSize();
@@ -193,17 +211,12 @@ export class MaintenanceUtils {
                     didScroll = true; 
                 }
 
-                // Scroll fokus ke elemen kartu target sebelum melakukan klik halus
-                await this.humanScrollToElement(cardElement);
-                await cardElement.scrollIntoViewIfNeeded();
-                await GeneralUtils.randomSleep(400, 800);
-
                 // Gerakkan kursor ke kartu pesawat secara halus dan klik secara acak di area aman kartu
                 await GeneralUtils.moveAndClick(this.page, cardElement);
                 clicked = true;
 
-                // Jeda ketukan jari manusia antar klik pesawat agar aman dari Anti-Cheat game
-                await GeneralUtils.randomSleep(1000, 2000);
+                // Jeda ketukan jari manusia antar klik pesawat agar aman dari Anti-Cheat game dan menunggu DOM stabil
+                await GeneralUtils.randomSleep(1500, 2500);
             }
         }
 
@@ -223,3 +236,4 @@ export class MaintenanceUtils {
         }
     }
 }
+
