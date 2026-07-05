@@ -12,7 +12,7 @@ export class MaintenanceUtils {
         this.page = page;
         // Mengambil konfigurasi dari .env dengan nilai fallback default jika tidak diisi
         this.repairWear = process.env.REPAIR_WEAR || '30';
-        this.hoursCheck = parseInt(process.env.HOURS_CHECK || '30', 10); // Default ke 20 jam jika .env kosong
+        this.hoursCheck = parseInt(process.env.HOURS_CHECK || '30', 10); // Default ke 30 jam jika .env kosong
     }
 
     /**
@@ -141,7 +141,7 @@ export class MaintenanceUtils {
         
         console.log(`[Task] Mengevaluasi ${cardsCount} kartu pesawat dari atas ke bawah (Ambang batas: < ${this.hoursCheck} jam)...`);
 
-        // 🚀 STRATEGI UTAMA 2: Jalankan loop satu arah langsung dari indeks 0 hingga akhir tanpa interupsi rescan/break
+        // 🚀 STRATEGI UTAMA 2: Jalankan loop satu arah langsung dari indeks 0 hingga akhir
         for (let i = 0; i < cardsCount; i++) {
             const cardElement = allPlaneCards.nth(i);
             
@@ -155,17 +155,36 @@ export class MaintenanceUtils {
             // Pengaman Tambahan: Deteksi apakah teks jam terbang di dalam kartu ini sudah menyala merah (.text-danger)
             const hasDangerText = await cardElement.locator('.text-danger').count() > 0;
             
-            // Ekstrak angka jam penerbangan sebelum kata hr/hour/hours/jam
-            const hourMatch = cardText.match(/(\d+)\s*(?=hr|hour|jam)/i);
-            let hoursRemaining = 999; 
+            // 🚀 PERBAIKAN REGEX: Menangkap angka jam yang berada di BARIS BARU tepat setelah kalimat "Hours to check"
+            const hourMatch = cardText.match(/hours\s*to\s*check\s*[\r\n\s]*(\d+)/i) || cardText.match(/(\d+)\s*(?=hr|hour|jam)/i);
+            let hoursRemaining = null; 
             
             if (hourMatch) {
                 hoursRemaining = parseInt(hourMatch[1], 10);
+            } else {
+                // Jalur cadangan jika teks "Hours to check" berubah, ambil angka pertama yang tersedia di kartu
+                const backupMatch = cardText.match(/\d+/);
+                if (backupMatch) hoursRemaining = parseInt(backupMatch[0], 10);
             }
 
-            // EVALUASI: Jika jam penerbangan <= hoursCheck (20 jam) ATAU teks jam sudah berwarna merah (.text-danger)
-            if (hoursRemaining <= this.hoursCheck || hasDangerText) {
-                let alasan = hasDangerText ? "Teks Angka Jam Berwarna Merah" : `Sisa ${hoursRemaining} jam (Di bawah batas ${this.hoursCheck} jam)`;
+            // --- 📌 EVALUASI PRIORITAS BARU ---
+            let harusDiCheck = false;
+            let alasan = "";
+
+            if (hoursRemaining !== null) {
+                // PRIORITAS UTAMA: Jika nilai teks angka berhasil diekstrak, jadikan acuan mutlak (Hijau/Merah tidak masalah)
+                if (hoursRemaining <= this.hoursCheck) {
+                    harusDiCheck = true;
+                    alasan = `Sisa ${hoursRemaining} jam (Di bawah/sama dengan batas ${this.hoursCheck} jam) [Berdasarkan Angka Teks]`;
+                }
+            } else if (hasDangerText) {
+                // PRIORITAS CADANGAN: Hanya jika teks angka gagal terbaca sama sekali, gunakan warna merah sebagai fallback
+                harusDiCheck = true;
+                alasan = "Gagal membaca teks angka, tetapi mendeteksi warna merah (.text-danger)";
+            }
+
+            // Eksekusi klik jika memenuhi syarat di atas
+            if (harusDiCheck) {
                 console.log(`[Preventif] Klik kartu pesawat indeks ${i} karena: ${alasan}`);
 
                 const boxBefore = await cardElement.boundingBox();
@@ -204,4 +223,3 @@ export class MaintenanceUtils {
         }
     }
 }
-
